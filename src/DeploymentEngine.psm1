@@ -60,12 +60,8 @@ function Send-DeploymentEvent {
     Write-Host "[$Stage][$Status] $Message"
 
     if ($Config.telemetry.enabled -and $Config.telemetry.endpoint) {
-        try {
-            Invoke-RestMethod -Method Post -Uri $Config.telemetry.endpoint -ContentType 'application/json' -Body $json -TimeoutSec 10 | Out-Null
-        }
-        catch {
-            Write-Warning "Telemetry delivery failed: $($_.Exception.Message)"
-        }
+        try { Invoke-RestMethod -Method Post -Uri $Config.telemetry.endpoint -ContentType 'application/json' -Body $json -TimeoutSec 10 | Out-Null }
+        catch { Write-Warning "Telemetry delivery failed: $($_.Exception.Message)" }
     }
 }
 
@@ -88,14 +84,8 @@ function Test-DeploymentPreflight {
     $checks = [ordered]@{}
     $checks.Network = [bool](Get-NetIPConfiguration -ErrorAction SilentlyContinue | Where-Object { $_.IPv4DefaultGateway } | Select-Object -First 1)
     try { $checks.Internet = Test-NetConnection -ComputerName 'www.microsoft.com' -Port 443 -InformationLevel Quiet -WarningAction SilentlyContinue } catch { $checks.Internet = $false }
-
-    try {
-        $tpm = Get-Tpm -ErrorAction Stop
-        $checks.TpmReady = [bool]$tpm.TpmReady
-    } catch { $checks.TpmReady = $false }
-
+    try { $tpm = Get-Tpm -ErrorAction Stop; $checks.TpmReady = [bool]$tpm.TpmReady } catch { $checks.TpmReady = $false }
     try { $checks.SecureBoot = [bool](Confirm-SecureBootUEFI -ErrorAction Stop) } catch { $checks.SecureBoot = $false }
-
     [pscustomobject]$checks
 }
 
@@ -124,20 +114,52 @@ function Resolve-DeploymentSelection {
 }
 
 function Invoke-OSDCloudDeployment {
-    [CmdletBinding(SupportsShouldProcess)]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact='High')]
     param(
         [Parameter(Mandatory)] [pscustomobject] $Selection,
         [Parameter(Mandatory)] [pscustomobject] $Config,
         [Parameter(Mandatory)] [pscustomobject] $Context
     )
 
-    Send-DeploymentEvent -Context $Context -Config $Config -Stage 'OSDCloud' -Event 'DeploymentPrepared' -Message "Prepared $($Selection.WindowsVersion) $($Selection.Edition), $($Selection.Language), drivers $($Selection.Drivers)."
+    if ($env:SystemDrive -ne 'X:') { throw 'Disk wipe is only permitted when running from WinPE (SystemDrive X:).' }
+    if (-not (Get-Command Start-OSDCloud -ErrorAction SilentlyContinue)) { throw 'Start-OSDCloud is not available. Import/install the OSD module in WinPE first.' }
 
-    if (-not $PSCmdlet.ShouldProcess($Context.SerialNumber, 'Wipe disk and start OSDCloud deployment')) { return }
+    $fixedDisks = @(Get-Disk -ErrorAction Stop | Where-Object { $_.BusType -ne 'USB' -and -not $_.IsBoot })
+    if ($fixedDisks.Count -eq 0) { throw 'No non-USB target disk was found.' }
 
-    # Deliberately guarded in V0.1. The production Start-OSDCloud invocation will be
-    # implemented after parameter mapping is validated against the target OSDCloud release.
-    throw 'Destructive OSDCloud execution is not enabled in V0.1.'
+    Send-DeploymentEvent -Context $Context -Config $Config -Stage 'DiskPreparation' -Event 'DiskWipePending' -Status 'Waiting' -Severity 'Warning' -Message "OSDCloud is ready to clear the target disk and deploy $($Selection.WindowsVersion)." -Data @{ disks = @($fixedDisks | ForEach-Object { @{ number=$_.Number; friendlyName=$_.FriendlyName; size=$_.Size } }) }
+
+    $target = if ($Context.SerialNumber) { "$($Context.Manufacturer) $($Context.Model) [$($Context.SerialNumber)]" } else { "$($Context.Manufacturer) $($Context.Model)" }
+    if (-not $PSCmdlet.ShouldProcess($target, 'CLEAR TARGET DISK and start OSDCloud deployment')) {
+        Send-DeploymentEvent -Context $Context -Config $Config -Stage 'DiskPreparation' -Event 'DiskWipeCancelled' -Status 'Waiting' -Message 'Disk wipe was cancelled or simulated with WhatIf.'
+        return
+    }
+
+    # OSDCloud performs the actual disk selection, Clear-Disk and partition creation.
+    # We intentionally do not run a separate Clear-Disk here; doing so would duplicate
+    # OSDCloud's disk workflow and increase the chance of wiping the wrong disk.
+    $osName = $Selection.WindowsVersion
+    if ($osName -notmatch 'x64$') { $osName = "$osName x64" }
+
+    $params = @{
+        OSName     = $osName
+        OSEdition  = $Selection.Edition
+        OSLanguage = $Selection.Language
+    }
+
+    if ($Selection.Mode -eq 'ZTI') { $params.ZTI = $true }
+
+    Send-DeploymentEvent -Context $Context -Config $Config -Stage 'DiskPreparation' -Event 'DiskWipeStarted' -Message 'Handing control to OSDCloud. Target disk clear is enabled.'
+    Send-DeploymentEvent -Context $Context -Config $Config -Stage 'WindowsInstallation' -Event 'OSDCloudStarted' -Message "Starting OSDCloud with OSName '$osName', edition '$($Selection.Edition)', language '$($Selection.Language)'."
+
+    try {
+        Start-OSDCloud @params
+        Send-DeploymentEvent -Context $Context -Config $Config -Stage 'WindowsInstallation' -Event 'OSDCloudReturned' -Status 'Succeeded' -Message 'OSDCloud deployment engine returned successfully.'
+    }
+    catch {
+        Send-DeploymentEvent -Context $Context -Config $Config -Stage 'WindowsInstallation' -Event 'OSDCloudFailed' -Status 'Failed' -Severity 'Error' -Message $_.Exception.Message -Data @{ exceptionType=$_.Exception.GetType().FullName; scriptStackTrace=$_.ScriptStackTrace }
+        throw
+    }
 }
 
 function Invoke-AutopilotRegistration {
@@ -150,12 +172,7 @@ function Invoke-AutopilotRegistration {
 
     if (-not $Config.autopilot.enabled) { return }
     Send-DeploymentEvent -Context $Context -Config $Config -Stage 'Autopilot' -Event 'AuthenticationRequired' -Status 'Waiting' -Message 'Interactive Microsoft authentication is required for Autopilot registration.'
-
-    if ($PSCmdlet.ShouldProcess($Context.SerialNumber, "Register with Autopilot using GroupTag '$($Selection.GroupTag)'")) {
-        # No tenant credentials are persisted. Production implementation will invoke
-        # Get-WindowsAutopilotInfo/Graph through interactive authentication.
-        Write-Host "Autopilot registration prepared. GroupTag: $($Selection.GroupTag)"
-    }
+    if ($PSCmdlet.ShouldProcess($Context.SerialNumber, "Register with Autopilot using GroupTag '$($Selection.GroupTag)'")) { Write-Host "Autopilot registration prepared. GroupTag: $($Selection.GroupTag)" }
 }
 
 Export-ModuleMember -Function New-DeploymentContext,Send-DeploymentEvent,Save-DeploymentState,Test-DeploymentPreflight,Resolve-DeploymentSelection,Invoke-OSDCloudDeployment,Invoke-AutopilotRegistration
