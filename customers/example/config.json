@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0",
+  "customer": {
+    "id": "example",
+    "displayName": "Example Customer",
+    "branding": {
+      "windowTitle": "Example Customer - Windows Deployment",
+      "heading": "Windows Deployment",
+      "logoUri": null,
+      "supportText": "Contact the IT Service Desk if deployment fails."
+    }
+  },
+  "deployment": {
+    "defaultMode": "Hybrid",
+    "allowedModes": ["ZTI", "Hybrid", "Interactive"],
+    "requireWipeConfirmation": true,
+    "profiles": [
+      {
+        "id": "standard",
+        "displayName": "Standard PC",
+        "description": "Standard corporate Windows workstation",
+        "default": true,
+        "groupTag": "STD",
+        "windowsVersion": "Windows 11 25H2",
+        "edition": "Enterprise",
+        "language": "en-us",
+        "drivers": "Auto"
+      },
+      {
+        "id": "shared",
+        "displayName": "Shared PC",
+        "description": "Shared Windows workstation",
+        "default": false,
+        "groupTag": "SHARED",
+        "windowsVersion": "Windows 11 25H2",
+        "edition": "Enterprise",
+        "language": "en-us",
+        "drivers": "Auto"
+      }
+    ]
+  },
+  "options": {
+    "windowsVersions": { "default": "Windows 11 25H2", "allowed": ["Windows 11 25H2"] },
+    "editions": { "default": "Enterprise", "allowed": ["Enterprise", "Pro"] },
+    "languages": { "default": "en-us", "allowed": ["en-us", "da-dk"] },
+    "drivers": { "default": "Auto", "allowed": ["Auto"] }
+  },
+  "autopilot": {
+    "enabled": true,
+    "authentication": "Interactive",
+    "allowGroupTagSelection": true,
+    "groupTags": [
+      { "displayName": "Standard PC", "value": "STD", "description": "Standard corporate device", "default": true },
+      { "displayName": "Shared PC", "value": "SHARED", "description": "Shared device", "default": false },
+      { "displayName": "Kiosk", "value": "KIOSK", "description": "Kiosk deployment", "default": false }
+    ]
+  },
+  "regional": { "timeZone": "Romance Standard Time" },
+  "updates": { "windowsUpdate": true, "drivers": true, "firmware": false },
+  "telemetry": {
+    "enabled": true,
+    "endpoint": "https://telemetry.example.invalid/api/v1/events",
+    "heartbeatSeconds": 30
+  }
+}
