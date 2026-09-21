@@ -1,35 +1,17 @@
 # CustomeOSDCloud
 
-White-label, customer-configurable deployment orchestration on top of OSDCloud.
+**Status: deployment experiment; production behavior has not been validated.**
 
-## Goals
+This repository explores customer-configurable Windows deployment on top of OSDCloud. The default branch currently contains [DefaultBoot.ps1](DefaultBoot.ps1) and this README.
 
-- One generic deployment engine
-- Customer-specific branding and configuration
-- ZTI, Hybrid, and Interactive deployment modes
-- Customer-specific Autopilot Group Tags and deployment profiles
-- OSDCloud for Windows deployment, drivers, and updates
-- No tenant secrets stored on USB media or in public bootstrap/config files
-- Structured deployment telemetry with DeploymentId, stages, heartbeat, and errors
-- State continuity from WinPE to installed Windows
+## Current code and proposed foundation
 
-## Status
+`DefaultBoot.ps1` starts an OS deployment and generates post-install Autopilot registration code. It is an experiment, not a guarded bootstrap implementation. Its failure handling needs review, including restoring Administrator/autologon state when registration fails.
 
-V0.1 foundation. Destructive deployment actions are intentionally guarded while the orchestration, configuration, and telemetry contracts are established.
+The proposed customer-aware foundation is in [PR #1](https://github.com/xander-me/CustomeOSDCloud/pull/1), on `agent/initial-osdcloud-platform`. That branch contains `Bootstrap.ps1`, the deployment modules, example customer configuration, schema and architecture documents. Those files are not available on main, and this README does not imply that the PR is accepted.
 
-## Layout
+## Next work
 
-- `Bootstrap.ps1` - customer-aware entry point
-- `src/DeploymentEngine.psm1` - shared orchestration module
-- `customers/example/config.json` - example white-label customer configuration
-- `schema/customer-config.schema.json` - configuration contract
-- `docs/ARCHITECTURE.md` - architecture and security model
-- `docs/TELEMETRY.md` - telemetry event contract
+Review PR #1's authorization, configuration and failure/recovery paths, then verify the selected flow in an authorized disposable Windows/WinPE lab before accepting deployment behavior. No deployment acceptance evidence was produced by the repository-organization review on 2026-09-21.
 
-## Example
-
-```powershell
-.\Bootstrap.ps1 -CustomerConfigUri '.\customers\example\config.json' -Mode Hybrid -WhatIf
-```
-
-For production hosting, the customer endpoint can resolve to the same bootstrap engine while supplying that customer's configuration, for example `customer1.osdcloud.example.tld`.
+The separate [OSDCloud architecture project](https://github.com/xander-me/OSDCloud) describes a broader deployment/telemetry platform. This repository focuses on the customer bootstrap experiment; neither is the official upstream OSDCloud project.
