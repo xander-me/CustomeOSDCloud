@@ -15,3 +15,7 @@ The proposed customer-aware foundation is in [PR #1](https://github.com/xander-m
 Review PR #1's authorization, configuration and failure/recovery paths, then verify the selected flow in an authorized disposable Windows/WinPE lab before accepting deployment behavior. No deployment acceptance evidence was produced by the repository-organization review on 2026-09-21.
 
 The separate [OSDCloud architecture project](https://github.com/xander-me/OSDCloud) describes a broader deployment/telemetry platform. This repository focuses on the customer bootstrap experiment; neither is the official upstream OSDCloud project.
+
+## Current work and handoff
+
+Read [STATUS.md](STATUS.md) for current work, evidence, blockers and the next action. This README remains the project entry point; the handoff is a dated record and must be checked against live Git/issue state.
