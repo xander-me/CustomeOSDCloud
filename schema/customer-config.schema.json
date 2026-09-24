@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://osdcloud.example/schema/customer-config.schema.json",
+  "title": "CustomeOSDCloud Customer Configuration",
+  "type": "object",
+  "required": ["schemaVersion", "customer", "deployment", "options", "autopilot", "regional", "updates", "telemetry"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "customer": {
+      "type": "object",
+      "required": ["id", "displayName", "branding"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "displayName": { "type": "string", "minLength": 1 },
+        "branding": { "type": "object" }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "required": ["defaultMode", "allowedModes", "profiles"],
+      "properties": {
+        "defaultMode": { "enum": ["ZTI", "Hybrid", "Interactive"] },
+        "allowedModes": { "type": "array", "items": { "enum": ["ZTI", "Hybrid", "Interactive"] }, "minItems": 1, "uniqueItems": true },
+        "requireWipeConfirmation": { "type": "boolean" },
+        "profiles": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/profile" } }
+      }
+    },
+    "options": { "type": "object" },
+    "autopilot": {
+      "type": "object",
+      "required": ["enabled", "authentication", "groupTags"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "authentication": { "enum": ["Interactive"] },
+        "allowGroupTagSelection": { "type": "boolean" },
+        "groupTags": { "type": "array", "items": { "$ref": "#/$defs/groupTag" } }
+      }
+    },
+    "regional": { "type": "object", "required": ["timeZone"] },
+    "updates": { "type": "object" },
+    "telemetry": { "type": "object", "required": ["enabled", "heartbeatSeconds"] }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "required": ["id", "displayName", "groupTag", "windowsVersion", "edition", "language", "drivers"],
+      "properties": {
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "description": { "type": "string" },
+        "default": { "type": "boolean" },
+        "groupTag": { "type": "string" },
+        "windowsVersion": { "type": "string" },
+        "edition": { "type": "string" },
+        "language": { "type": "string" },
+        "drivers": { "type": "string" }
+      }
+    },
+    "groupTag": {
+      "type": "object",
+      "required": ["displayName", "value"],
+      "properties": {
+        "displayName": { "type": "string" },
+        "value": { "type": "string" },
+        "description": { "type": "string" },
+        "default": { "type": "boolean" }
+      }
+    }
+  }
+}
